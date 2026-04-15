@@ -4,11 +4,10 @@
 
 - Python 3.8+
 - pip package manager
-- Git (optional)
 
 ## Installation
 
-### 1. Clone or Navigate to Project
+### 1. Navigate to Project
 
 ```bash
 cd churn-pipeline-ML
@@ -27,11 +26,6 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-**Windows (PowerShell):**
-```powershell
-.\venv\Scripts\Activate.ps1
-```
-
 **Windows (CMD):**
 ```cmd
 venv\Scripts\activate.bat
@@ -43,125 +37,105 @@ venv\Scripts\activate.bat
 pip install -r requirements.txt
 ```
 
+### 5. (Optional) Install API Dependencies
+
+```bash
+pip install -r requirements-api.txt
+```
+
 ## Project Structure
 
 ```
-churn-pipeline-ML/
+Churn_ML_Pipeline/
 ├── data/
-│   └── WA_Fn-UseC_-Telco-Customer-Churn.csv  # Dataset
+│   └── WA_Fn-UseC_-Telco-Customer-Churn.csv
 ├── src/
-│   ├── data_preprocessing.py   # Data cleaning & feature engineering
-│   ├── train.py                 # Model training & GridSearchCV
-│   ├── evaluate.py              # Evaluation metrics
-│   ├── pipeline.py              # Main pipeline orchestrator
-│   └── inference.py             # Inference script
+│   ├── preprocessing.py    # Data cleaning & feature engineering
+│   ├── train.py            # Model training & GridSearchCV
+│   ├── evaluate.py         # Evaluation metrics
+│   └── pipeline.py         # Main pipeline orchestrator
+├── api/
+│   └── main.py             # FastAPI server
 ├── models/
-│   └── churn_pipeline.pkl       # Trained model (after running pipeline)
+│   └── churn_pipeline.pkl  # Trained model
+├── main.py                 # CLI entry point
 ├── requirements.txt
+├── requirements-api.txt
 ├── README.md
 └── setup_Guide.md
 ```
 
 ## Usage
 
-### Run the Complete Pipeline
+### CLI Commands
 
 ```bash
-source venv/bin/activate
-python -m src.pipeline
+# Run full pipeline
+python main.py
+
+# Save versioned model (with timestamp)
+python main.py --version
+
+# Run inference on CSV
+python main.py --input data/sample.csv
 ```
 
-This will:
-1. Load and clean the dataset
-2. Engineer new features
-3. Identify feature types (numerical/categorical)
-4. Build preprocessing pipeline
-5. Split data into train/test sets
-6. Train Logistic Regression and Random Forest models
-7. Tune hyperparameters using GridSearchCV
-8. Evaluate the best model
-9. Export the pipeline to `models/churn_pipeline.pkl`
-
-### Run Inference
-
-```bash
-python -m src.inference
-```
-
-### Load Model in Python
+### Python API
 
 ```python
-import joblib
-import pandas as pd
-from src.data_preprocessing import clean_data, engineer_features
+from src.preprocessing import clean_data, engineer_features
+from src.pipeline import load_and_predict
 
-# Load trained model
-model = joblib.load('models/churn_pipeline.pkl')
-
-# Load and prepare data
-df = pd.read_csv('data/WA_Fn-UseC_-Telco-Customer-Churn.csv')
-df = clean_data(df)
-df = engineer_features(df)
-X = df.drop('Churn', axis=1)
-
-# Make predictions
-predictions = model.predict(X)
-probabilities = model.predict_proba(X)[:, 1]
+# Load and predict
+predictions, probabilities = load_and_predict('data/sample.csv')
 ```
 
-## Dataset
+### FastAPI Server
 
-The pipeline uses the Telco Customer Churn dataset from Kaggle:
-https://www.kaggle.com/datasets/blastchar/telco-customer-churn
+```bash
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-**Features:**
-- Customer demographics (gender, SeniorCitizen, Partner, Dependents)
-- Services (PhoneService, InternetService, etc.)
-- Account info (tenure, Contract, PaymentMethod)
-- Billing (MonthlyCharges, TotalCharges)
+**Endpoints:**
+- `GET /` - API info
+- `GET /health` - Health check
+- `POST /predict` - Single prediction
+- `POST /predict_batch` - Batch predictions
 
-**Target:** Churn (Yes/No)
-
-## Requirements
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| pandas | >=2.0.0 | Data manipulation |
-| numpy | >=1.24.0 | Numerical operations |
-| scikit-learn | >=1.3.0 | ML pipeline & models |
-| joblib | >=1.3.0 | Model serialization |
+**Example request:**
+```bash
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gender": "Male",
+    "SeniorCitizen": 0,
+    "Partner": "Yes",
+    "Dependents": "No",
+    "tenure": 24,
+    "PhoneService": "Yes",
+    "MultipleLines": "No",
+    "InternetService": "DSL",
+    "OnlineSecurity": "Yes",
+    "OnlineBackup": "No",
+    "DeviceProtection": "Yes",
+    "TechSupport": "No",
+    "StreamingTV": "Yes",
+    "StreamingMovies": "No",
+    "Contract": "One year",
+    "PaperlessBilling": "No",
+    "PaymentMethod": "Bank transfer",
+    "MonthlyCharges": 45.30,
+    "TotalCharges": 1087.20
+  }'
+```
 
 ## Troubleshooting
 
-### Permission Denied (venv activation)
-```bash
-chmod +x venv/bin/activate
-```
+### Model file not found
+Run `python main.py` first to generate the model.
 
-### Package Installation Failed
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
+### Import errors
+Ensure virtual environment is activated: `source venv/bin/activate`
 
-### Model File Not Found
-Run the pipeline first to generate `models/churn_pipeline.pkl`.
-
-## Development
-
-### Run Tests
-```bash
-source venv/bin/activate
-pytest
-```
-
-### Deactivate Environment
-```bash
-deactivate
-```
-
-## Notes
-
-- The pipeline uses balanced class weights to handle churn imbalance
-- Training uses parallel processing (`n_jobs=-1`) for faster execution
-- The exported `.pkl` file includes both preprocessing and model
+### Port already in use
+Change port: `python -m uvicorn api.main:app --port 8001`

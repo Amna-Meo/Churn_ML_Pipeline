@@ -1,49 +1,54 @@
-import sys
 import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import logging
+import joblib
 import pandas as pd
-import numpy as np
-from src.data_preprocessing import (
+from datetime import datetime
+
+from src.preprocessing import (
     get_feature_types,
     build_preprocessing_pipeline,
     clean_data,
     engineer_features,
 )
-from src.train import train_models, export_pipeline
+from src.train import train_models
+from src.evaluate import evaluate_model
+from src.train import train_models
 from src.evaluate import evaluate_model
 
+logger = logging.getLogger(__name__)
 
-def main():
-    print("=" * 60)
-    print("CUSTOMER CHURN PREDICTION PIPELINE")
-    print("=" * 60)
 
-    print("\n[1/7] Loading dataset...")
+def run_pipeline(versioned=False):
+    logger.info("=" * 60)
+    logger.info("CUSTOMER CHURN PREDICTION PIPELINE")
+    logger.info("=" * 60)
+
+    logger.info("[1/7] Loading dataset...")
     df = pd.read_csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
-    print(f"Dataset shape: {df.shape}")
+    logger.info(f"Dataset shape: {df.shape}")
 
-    print("\n[2/7] Cleaning data...")
+    logger.info("[2/7] Cleaning data...")
     df = clean_data(df)
-    print(f"Cleaned dataset shape: {df.shape}")
+    logger.info(f"Cleaned dataset shape: {df.shape}")
 
-    print("\n[2.5/7] Engineering features...")
+    logger.info("[2.5/7] Engineering features...")
     df = engineer_features(df)
-    print(f"Feature engineered dataset shape: {df.shape}")
+    logger.info(f"Feature engineered dataset shape: {df.shape}")
 
-    print("\n[3/7] Identifying feature types...")
+    logger.info("[3/7] Identifying feature types...")
     numerical_features, categorical_features = get_feature_types(df)
-    print(f"Numerical features ({len(numerical_features)}): {numerical_features}")
-    print(f"Categorical features ({len(categorical_features)}): {categorical_features}")
+    logger.info(f"Numerical features ({len(numerical_features)}): {numerical_features}")
+    logger.info(
+        f"Categorical features ({len(categorical_features)}): {categorical_features}"
+    )
 
-    print("\n[4/7] Building preprocessing pipeline...")
+    logger.info("[4/7] Building preprocessing pipeline...")
     preprocessor = build_preprocessing_pipeline(
         numerical_features, categorical_features
     )
-    print("Preprocessing pipeline created successfully!")
+    logger.info("Preprocessing pipeline created successfully!")
 
-    print("\n[5/7] Splitting data...")
+    logger.info("[5/7] Splitting data...")
     X = df.drop("Churn", axis=1)
     y = df["Churn"].map({"Yes": 1, "No": 0})
 
@@ -52,25 +57,54 @@ def main():
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
-    print(f"Training set: {X_train.shape[0]} samples")
-    print(f"Test set: {X_test.shape[0]} samples")
+    logger.info(f"Training set: {X_train.shape[0]} samples")
+    logger.info(f"Test set: {X_test.shape[0]} samples")
 
-    print("\n[6/7] Training and tuning models...")
+    logger.info("[6/7] Training and tuning models...")
     best_model, best_model_name, results = train_models(X_train, y_train, preprocessor)
 
-    print("\n[7/7] Evaluating best model...")
+    logger.info("[7/7] Evaluating best model...")
     metrics = evaluate_model(best_model, X_test, y_test)
 
-    print("\n[8/7] Exporting pipeline...")
+    logger.info("[8/8] Exporting pipeline...")
     os.makedirs("models", exist_ok=True)
-    export_pipeline(best_model, "models/churn_pipeline.pkl")
 
-    print("\n" + "=" * 60)
-    print("PIPELINE COMPLETE!")
-    print("=" * 60)
+    if versioned:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_path = f"models/churn_pipeline_{timestamp}.pkl"
+    else:
+        model_path = "models/churn_pipeline.pkl"
 
-    return best_model, metrics
+    joblib.dump(best_model, model_path)
+    logger.info(f"Pipeline exported to: {model_path}")
+
+    logger.info("=" * 60)
+    logger.info("PIPELINE COMPLETE!")
+    logger.info("=" * 60)
+
+    return model_path, metrics
+
+
+def load_and_predict(input_path, model_path="models/churn_pipeline.pkl"):
+    logger.info(f"Loading model from: {model_path}")
+    model = joblib.load(model_path)
+
+    logger.info(f"Loading data from: {input_path}")
+    df = pd.read_csv(input_path)
+
+    df = clean_data(df)
+    df = engineer_features(df)
+    X = df.drop("Churn", axis=1)
+
+    predictions = model.predict(X)
+    probabilities = model.predict_proba(X)[:, 1]
+
+    logger.info(f"Predictions complete. Total: {len(predictions)}")
+    logger.info(f"Churn predicted: {(predictions == 1).sum()}")
+    logger.info(f"No churn predicted: {(predictions == 0).sum()}")
+
+    return predictions, probabilities
 
 
 if __name__ == "__main__":
-    main()
+    run_pipeline()

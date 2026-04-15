@@ -1,89 +1,149 @@
-# Customer Churn Prediction Pipeline
+# Customer Churn Prediction - End-to-End ML Pipeline
 
-End-to-end ML pipeline for predicting customer churn using the Telco Customer Churn dataset.
+## Problem Statement
+
+Telecommunication companies face significant revenue loss due to customer churn. This system predicts whether a customer will churn based on historical data using a fully automated ML pipeline.
+
+## System Architecture
+
+```
+Raw Dataset (CSV)
+     ↓
+Data Cleaning & Validation
+     ↓
+Feature Engineering
+     ↓
+ColumnTransformer (Scaling + Encoding)
+     ↓
+ML Pipeline (Model + Preprocessing)
+     ↓
+GridSearchCV (Optimization)
+     ↓
+Evaluation Metrics
+     ↓
+Export (.pkl using joblib)
+     ↓
+FastAPI / CLI / Direct Python
+```
 
 ## Project Structure
 
 ```
-churn-ml-pipeline/
+Churn_ML_Pipeline/
 ├── data/
 │   └── WA_Fn-UseC_-Telco-Customer-Churn.csv
 ├── src/
-│   ├── data_preprocessing.py
-│   ├── train.py
-│   ├── evaluate.py
-│   ├── pipeline.py
-│   └── inference.py
+│   ├── preprocessing.py   # Data cleaning & feature engineering
+│   ├── train.py           # Model training & GridSearchCV
+│   ├── evaluate.py        # Evaluation metrics
+│   └── pipeline.py        # Main pipeline orchestrator
+├── api/
+│   └── main.py           # FastAPI server
 ├── models/
 │   └── churn_pipeline.pkl
 ├── requirements.txt
-└── README.md
+├── requirements-api.txt
+├── main.py               # CLI entry point
+├── README.md
+└── setup_Guide.md
 ```
 
-## Setup
+## Models & Performance
 
+| Model | Accuracy | Precision | Recall | F1 Score |
+|-------|----------|-----------|--------|----------|
+| Logistic Regression | 0.73 | 0.50 | 0.81 | 0.61 |
+| Random Forest | 0.73 | 0.49 | 0.80 | 0.61 |
+
+**Best Model:** Logistic Regression (F1: 0.61)
+
+## Quick Start
+
+### 1. Setup
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Usage
-
-### Run the complete pipeline:
-
+### 2. Run Pipeline
 ```bash
-source venv/bin/activate
-python -m src.pipeline
+# Standard run
+python main.py
+
+# Save versioned model
+python main.py --version
 ```
 
-### Use the trained model for predictions:
-
+### 3. Run API Server
 ```bash
-python -m src.inference
+pip install -r requirements-api.txt
+python -m uvicorn api.main:app --reload
 ```
 
-### Load model in Python:
-
-```python
-import joblib
-import pandas as pd
-from src.data_preprocessing import clean_data, engineer_features
-
-model = joblib.load('models/churn_pipeline.pkl')
-df = pd.read_csv('data/WA_Fn-UseC_-Telco-Customer-Churn.csv')
-df = clean_data(df)
-df = engineer_features(df)
-X = df.drop('Churn', axis=1)
-predictions = model.predict(X)
-probabilities = model.predict_proba(X)
+### 4. CLI Predictions
+```bash
+python main.py --input data/sample.csv
 ```
 
-## Pipeline Features
+## API Endpoints
 
-- **Data Cleaning**: Handles missing values, type conversions
-- **Feature Engineering**: Tenure groups, charges ratio, service counts
-- **Preprocessing**: 
-  - Numerical: Median imputation + StandardScaler
-  - Categorical: Most frequent imputation + OneHotEncoder
-- **Models**: Logistic Regression, Random Forest (with balanced class weights)
-- **Hyperparameter Tuning**: GridSearchCV with 5-fold cross-validation
-- **Evaluation**: Accuracy, Precision, Recall, F1 Score, Confusion Matrix
-- **Export**: Single `.pkl` file including preprocessing + model
-- **Parallel Processing**: n_jobs=-1 for faster training
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | API info |
+| GET | `/health` | Health check |
+| POST | `/predict` | Single prediction |
+| POST | `/predict_batch` | Batch predictions |
 
-## Requirements
+### Example Request
+```bash
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"gender":"Male","SeniorCitizen":0,"Partner":"Yes","Dependents":"No","tenure":24,"PhoneService":"Yes","MultipleLines":"No","InternetService":"DSL","OnlineSecurity":"Yes","OnlineBackup":"No","DeviceProtection":"Yes","TechSupport":"No","StreamingTV":"Yes","StreamingMovies":"No","Contract":"One year","PaperlessBilling":"No","PaymentMethod":"Bank transfer (automatic)","MonthlyCharges":45.30,"TotalCharges":1087.20}'
+```
 
-- pandas>=2.0.0
-- numpy>=1.24.0
-- scikit-learn>=1.3.0
-- joblib>=1.3.0
+## Core Components
 
-## Model Performance
+### Data Preprocessing
+- Missing value handling (median/mode)
+- StandardScaler for numerical features
+- OneHotEncoder for categorical features
+- Custom feature engineering (tenure groups, service counts)
 
-| Metric    | Score  |
-|-----------|--------|
-| Accuracy  | 0.73   |
-| Precision | 0.50   |
-| Recall    | 0.81   |
-| F1 Score  | 0.61   |
+### Model Training
+- **Logistic Regression**: Baseline, interpretable
+- **Random Forest**: Non-linear ensemble
+
+### Hyperparameter Tuning
+- GridSearchCV with 5-fold cross-validation
+- F1 score optimization
+- Parallel processing (n_jobs=-1)
+
+### Model Serialization
+- Single `.pkl` file includes preprocessing + model
+- No need to redo preprocessing
+- Direct inference on raw data
+
+## Non-Functional Requirements
+
+| Requirement | Implementation |
+|-------------|----------------|
+| Performance | n_jobs=-1 for parallel training |
+| Reusability | Single pipeline handles everything |
+| Scalability | FastAPI-ready for deployment |
+| Maintainability | Modular codebase |
+
+## Risks & Limitations
+
+- Class imbalance (~26% churn rate) - mitigated with balanced class weights
+- Data leakage prevented by keeping preprocessing inside pipeline
+- Random Forest overfitting - controlled via max_depth tuning
+
+## Skills Demonstrated
+
+- ML Pipeline Engineering
+- Feature Engineering
+- Model Optimization
+- Production ML (FastAPI, CLI)
+- Code Structuring
+- Model Serialization
